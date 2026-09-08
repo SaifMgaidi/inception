@@ -1,0 +1,9 @@
+
+# Nous indiquons a mariaDB que les parametres ci-dessous configurent le serveur.
+[mysqld]
+
+# indique a mariaDB d'ecouter sur le port standart 3306
+port = 3306
+
+# Avec la valeur: 0.0.0.0 nous acceptons les connexions venant de n'importe quelle addresse ip
+bind_address = 0.0.0.0
