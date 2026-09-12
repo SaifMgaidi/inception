@@ -7,7 +7,8 @@ FROM debian:bookworm
 RUN apt-get update -y && apt-get install -y \
 php-fpm \
 php-mysql \
-curl
+curl \
+mariadb-client
 
 # On telecharge wp-cli (il nous permettra d'installer wordpress en ligne de commande)
 RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar

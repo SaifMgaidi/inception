@@ -7,6 +7,11 @@ if [ ! -f wp-config.php ]; then
     # telecharge les fichiers de wordpress
     wp core download --allow-root
 
+    # On attend que MariaDB soit pret
+    while ! mysqladmin ping -h"${WORDPRESS_DB_HOST}" -u"${SQL_USER}" -p"${SQL_PASSWORD}" --silent; do
+        sleep 1
+    done
+    
     # cree le fichier de config, qui permet a wordpress,
     # de savoir comment se connecter a mariaDB.
     wp config create --dbname=${SQL_DATABASE} \
