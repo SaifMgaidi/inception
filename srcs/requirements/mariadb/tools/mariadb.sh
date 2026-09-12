@@ -1,30 +1,29 @@
 #!/bin/bash
-
-# Arreter le script en cas d'erreur
 set -e
 
-# On demarre temporairement le service mariadb
-service mariadb start
+# On verifie si le dossier de la base de donnees existe deja dans le volume
+if [ ! -d "/var/lib/mysql/${SQL_DATABASE}" ]; then
+    
+    # On demarre temporairement le service mariadb pour le configurer
+    service mariadb start
 
-# On attend que le serveur de mariaDB soit pret pour executer des commandes
-while ! mysqladmin ping --silent;do
-    sleep 1
-done
+    # On attend que le serveur soit pret
+    while ! mysqladmin ping --silent; do
+        sleep 1
+    done
 
-# Creation de la base de donnee (si elle n'existe pas deja)
-mysql -e "CREATE DATABASE IF NOT EXISTS \`${SQL_DATABASE}\`;"
+    # Creation et configuration
+    mysql -e "CREATE DATABASE IF NOT EXISTS \`${SQL_DATABASE}\`;"
+    mysql -e "CREATE USER IF NOT EXISTS '${SQL_USER}'@'%' IDENTIFIED BY '${SQL_PASSWORD}';"
+    mysql -e "GRANT ALL PRIVILEGES ON \`${SQL_DATABASE}\`.* TO '${SQL_USER}'@'%';"
+    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${SQL_ROOT_PASSWORD}';"
+    
+    # On applique les droits
+    mysql -e "FLUSH PRIVILEGES;"
 
-# Creation du premier utilisateur
-mysql -e "CREATE USER IF NOT EXISTS '${SQL_USER}'@'%' IDENTIFIED BY '${SQL_PASSWORD}';"
+    # On eteint proprement le service temporaire avec le nouveau mot de passe
+    mysqladmin -u root -p${SQL_ROOT_PASSWORD} shutdown
+fi
 
-# On donne tous les droits a notre utilisateur.
-mysql -e "GRANT ALL PRIVILEGES ON \`${SQL_DATABASE}\`.* TO '${SQL_USER}'@'%';"
-
-# On modifie le mot de passe de l'administrateur supreme (le root)
-mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${SQL_ROOT_PASSWORD}';"
-
-# On eteint proprement le service temporaire
-mysqladmin -u root -p${SQL_ROOT_PASSWORD} shutdown
-
-# On relance MariaDB au premier plan en remplacant le processus actuel
+# On lance MariaDB au premier plan (qu'il soit fraichement installe ou deja existant)
 exec mysqld_safe

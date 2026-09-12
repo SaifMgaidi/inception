@@ -8,6 +8,9 @@ RUN apt-get update -y && apt-get install mariadb-server -y
 # On copie notre fichier de configuration vers le bon dossier a l'interieur de l'image
 COPY conf/50-server.cnf /etc/mysql/mariadb.conf.d/50-server.cnf
 
+RUN sed -i 's/.*bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+
+
 # On copie notre script de demmarage
 COPY tools/mariadb.sh /usr/local/bin/mariadb.sh
 

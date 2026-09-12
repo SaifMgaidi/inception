@@ -53,7 +53,7 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /home/login/data/mariadb
+      device: /home/sm-gaidi/data/mariadb
   wordpress_vol:
     driver: local
     driver_opts:
