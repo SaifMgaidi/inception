@@ -2,67 +2,65 @@
 
 # Inception
 
-> Projet **42 Inception** — déploiement d'une petite infrastructure web entièrement conteneurisée avec Docker Compose.
+## Description
 
-## 📖 Présentation
+Inception is a 42 project focused on building a small web infrastructure using Docker Compose.
 
-**Inception** consiste à mettre en place une infrastructure composée de plusieurs services Docker, chacun exécuté dans son propre conteneur et construit à partir d'une image Debian personnalisée.
+The infrastructure is composed of three services, each running in its own Docker container:
 
-Dans ce projet, l'infrastructure est composée de trois services :
+- **NGINX**: the only public entry point. It handles HTTPS connections on port 443 and forwards PHP requests to WordPress through FastCGI.
+- **WordPress + PHP-FPM**: provides the website and executes PHP code.
+- **MariaDB**: stores the WordPress database.
 
-* **NGINX** : serveur web et point d'entrée HTTPS.
-* **WordPress + PHP-FPM** : application web.
-* **MariaDB** : base de données utilisée par WordPress.
+The services communicate through a dedicated Docker bridge network. Persistent project data is stored in the host data directories required by the project.
 
-Les services communiquent sur un réseau Docker privé et les données persistantes sont stockées dans des volumes montés sur la machine hôte.
-
-## 🏗️ Architecture
+## Architecture
 
 ```text
                          HTTPS :443
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │      NGINX      │
-                    │    Debian       │
-                    │   SSL / HTTPS   │
-                    └────────┬────────┘
-                             │
-                       FastCGI :9000
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │    WORDPRESS    │
-                    │  PHP-FPM 8.2   │
-                    │    WP-CLI       │
-                    └────────┬────────┘
-                             │
+                              |
+                              v
+                    +------------------+
+                    |      NGINX       |
+                    |   SSL / HTTPS    |
+                    +--------+---------+
+                             |
+                        FastCGI :9000
+                             |
+                             v
+                    +------------------+
+                    |    WORDPRESS     |
+                    |    PHP-FPM       |
+                    |      WP-CLI      |
+                    +--------+---------+
+                             |
                          MySQL :3306
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │     MARIADB     │
-                    │     Debian      │
-                    └─────────────────┘
+                             |
+                             v
+                    +------------------+
+                    |     MARIADB      |
+                    +------------------+
 
-                    Docker network
+                    Docker bridge network
                     inception_network
 ```
 
-### Flux d'une requête
+### Request flow
 
-1. Le navigateur contacte `sm-gaidi.42.fr` en HTTPS sur le port `443`.
-2. NGINX reçoit la requête et sert les fichiers statiques.
-3. Les requêtes PHP sont transmises à PHP-FPM dans le conteneur WordPress via `wordpress:9000`.
-4. WordPress communique avec MariaDB via le nom de service Docker `mariadb`.
-5. Les données MariaDB et les fichiers WordPress sont conservés dans des volumes persistants.
+1. The browser connects to `sm-gaidi.42.fr` through HTTPS on port `443`.
+2. NGINX receives the request and serves static files.
+3. PHP requests are forwarded to PHP-FPM in the WordPress container through `wordpress:9000`.
+4. WordPress connects to MariaDB through the Docker service name `mariadb`.
+5. MariaDB and WordPress data are stored persistently in the project data directories.
 
-## 📁 Structure du projet
+## Project structure
 
 ```text
 inception/
 ├── Makefile
 ├── README.md
+├── USER_DOC.md
+├── DEV_DOC.md
 └── srcs/
     ├── .env
     ├── docker-compose.yml
@@ -73,12 +71,10 @@ inception/
         │   │   └── 50-server.cnf
         │   └── tools/
         │       └── mariadb.sh
-        │
         ├── nginx/
         │   ├── Dockerfile
         │   └── conf/
         │       └── nginx.conf
-        │
         └── wordpress/
             ├── Dockerfile
             ├── conf/
@@ -87,271 +83,233 @@ inception/
                 └── wordpress.sh
 ```
 
-La structure actuelle du dépôt contient bien les trois services et leurs fichiers de configuration/scripts associés.
+> `srcs/.env` is a local configuration file and must not be committed to Git.
 
----
-
-# 🐳 Services
+# Services
 
 ## MariaDB
 
-Le conteneur MariaDB est construit depuis `debian:bookworm` et installe le serveur MariaDB avec `apt`.
+The MariaDB container is built from `debian:bookworm` and installs the MariaDB server.
 
-Le Dockerfile :
+Its configuration:
 
-* installe MariaDB ;
-* copie `50-server.cnf` ;
-* configure l'adresse d'écoute de MariaDB ;
-* installe le script `mariadb.sh` ;
-* utilise ce script comme `ENTRYPOINT`.
+- installs MariaDB;
+- configures the database server;
+- listens on port `3306`;
+- accepts connections from the Docker network;
+- uses `mariadb.sh` to initialize the database.
 
-### Initialisation
+### Initialization
 
-Le script `mariadb.sh` :
+The `mariadb.sh` script:
 
-1. vérifie si la base existe déjà ;
-2. démarre temporairement MariaDB ;
-3. attend que MariaDB soit réellement disponible avec `mysqladmin ping` ;
-4. crée la base de données ;
-5. crée l'utilisateur WordPress ;
-6. attribue les privilèges nécessaires ;
-7. configure le mot de passe root ;
-8. arrête proprement le serveur temporaire ;
-9. relance MariaDB au premier plan avec `mysqld_safe`.
-
-Cette attente permet notamment d'éviter d'exécuter des commandes SQL alors que MariaDB n'est pas encore prêt à accepter les connexions.
-
----
+1. starts MariaDB temporarily when initialization is required;
+2. waits until the server is ready;
+3. creates the database;
+4. creates the WordPress database user;
+5. grants the required privileges;
+6. configures the root password;
+7. shuts down the temporary server;
+8. starts MariaDB in the foreground.
 
 ## WordPress
 
-Le conteneur WordPress est construit depuis `debian:bookworm`.
+The WordPress container is built from `debian:bookworm`.
 
-Il installe notamment :
+It installs:
 
-* PHP-FPM ;
-* `php-mysql` ;
-* `mariadb-client` ;
-* `curl` ;
-* WP-CLI.
+- PHP-FPM;
+- `php-mysql`;
+- `mariadb-client`;
+- `curl`;
+- WP-CLI.
 
-### Initialisation
+### Initialization
 
-Le script `wordpress.sh` :
+The `wordpress.sh` script:
 
-1. attend que MariaDB soit disponible ;
-2. télécharge WordPress avec WP-CLI lors de la première initialisation ;
-3. crée `wp-config.php` ;
-4. configure la connexion à MariaDB ;
-5. installe WordPress ;
-6. crée le compte administrateur ;
-7. crée un second utilisateur avec le rôle `author` ;
-8. crée `/run/php` ;
-9. attribue les fichiers du site à `www-data` ;
-10. lance PHP-FPM au premier plan.
+1. waits for MariaDB to be available;
+2. downloads WordPress during the first initialization;
+3. creates `wp-config.php`;
+4. configures the MariaDB connection;
+5. installs WordPress;
+6. creates the administrator account;
+7. creates a second WordPress user;
+8. prepares the PHP runtime directory;
+9. gives the website files to `www-data`;
+10. starts PHP-FPM in the foreground.
 
-PHP-FPM utilise l'utilisateur `www-data` afin que le processus PHP ne s'exécute pas avec les privilèges root.
-
----
+PHP-FPM runs as `www-data` instead of root.
 
 ## NGINX
 
-Le conteneur NGINX est également construit depuis `debian:bookworm`.
+The NGINX container is built from `debian:bookworm`.
 
-Il installe :
+It installs:
 
-* NGINX ;
-* OpenSSL.
+- NGINX;
+- OpenSSL.
 
-Un certificat SSL auto-signé est généré lors de la construction de l'image.
+NGINX:
 
-NGINX :
+- listens on port `443`;
+- uses HTTPS;
+- supports TLS 1.2 and TLS 1.3;
+- serves `/var/www/html`;
+- forwards PHP requests to `wordpress:9000` through FastCGI.
 
-* écoute sur le port `443` ;
-* utilise HTTPS ;
-* accepte TLS 1.2 et TLS 1.3 ;
-* sert `/var/www/html` ;
-* transmet les requêtes PHP à `wordpress:9000` via FastCGI.
+A self-signed TLS certificate is generated during the NGINX image build.
 
----
+# Docker network
 
-# 🔗 Réseau Docker
-
-Les trois services utilisent le réseau :
+The three services use the dedicated Docker network:
 
 ```text
 inception_network
 ```
 
-Il s'agit d'un réseau Docker de type `bridge`.
+The network uses the Docker `bridge` driver.
 
-Les services communiquent entre eux grâce aux noms de services Docker :
+Services communicate through Docker service names:
 
 ```text
-nginx     → wordpress:9000
-wordpress → mariadb
+nginx      -> wordpress:9000
+wordpress  -> mariadb:3306
 ```
 
-Aucun port MariaDB ou PHP-FPM n'est exposé directement sur la machine hôte.
+MariaDB and PHP-FPM are not directly exposed on the host.
 
-Seul le port HTTPS `443` est publié :
+Only HTTPS port `443` is published:
 
 ```yaml
 ports:
   - "443:443"
 ```
 
-La configuration Compose définit bien un réseau dédié ainsi que les trois services.
+# Volumes and data persistence
 
----
-
-# 💾 Volumes et persistance
-
-Deux volumes sont utilisés.
-
-## MariaDB
+The project uses two persistent volumes:
 
 ```text
-/home/sm-gaidi/data/mariadb
-        ↓
-/var/lib/mysql
+MariaDB:
+    /home/sm-gaidi/data/mariadb
+        |
+        v
+    /var/lib/mysql
+
+WordPress:
+    /home/sm-gaidi/data/wordpress
+        |
+        v
+    /var/www/html
 ```
 
-Ce volume contient les données de MariaDB.
+The MariaDB volume stores database files.
 
-## WordPress
+The WordPress volume stores the WordPress installation and website files, including `wp-config.php`.
 
-```text
-/home/sm-gaidi/data/wordpress
-        ↓
-/var/www/html
-```
+The data remains available when containers are recreated.
 
-Ce volume contient les fichiers WordPress, notamment :
+# Configuration and credentials
 
-* `wp-config.php` ;
-* les fichiers du site ;
-* les fichiers WordPress téléchargés.
-
-Les volumes sont configurés comme des bind mounts vers les dossiers de données de la machine hôte.
-
-Cela permet de conserver les données même lorsque les conteneurs sont supprimés puis recréés.
-
----
-
-# ⚙️ Configuration
-
-Les variables d'environnement utilisées par les différents services sont regroupées dans :
+The project configuration is stored locally in:
 
 ```text
 srcs/.env
 ```
 
-Elles permettent notamment de définir :
+The file contains environment variables used by the different services, including database and WordPress configuration.
 
-* le nom de domaine ;
-* le nom de la base de données ;
-* l'utilisateur MariaDB ;
-* les mots de passe MariaDB ;
-* les identifiants WordPress ;
-* l'adresse du serveur MariaDB.
-
-Le fichier Compose charge ce fichier avec :
+The Compose file loads these variables with:
 
 ```yaml
 env_file: .env
 ```
 
-pour les différents services.
+The `.env` file contains sensitive information and is ignored by Git. It must never be committed or shared publicly.
 
-## ⚠️ Sécurité
+# Installation
 
-**Attention : le fichier `srcs/.env` actuellement présent dans le dépôt contient des mots de passe et des identifiants réels.**
+## Prerequisites
 
-Pour un dépôt public, il est fortement recommandé de :
+- Linux
+- Docker
+- Docker Compose (`docker compose`)
+- `make`
+- Internet access to build the images and download WordPress
 
-1. ajouter `srcs/.env` au `.gitignore` ;
-2. créer un fichier `srcs/.env.example` sans secrets ;
-3. utiliser des mots de passe suffisamment robustes ;
-4. remplacer les mots de passe actuellement exposés ;
-5. si nécessaire, nettoyer également l'historique Git pour supprimer les secrets déjà commités.
-
-**Les mots de passe présents dans le dépôt doivent être considérés comme compromis.**
-
----
-
-# 🚀 Installation
-
-## Prérequis
-
-* Linux ;
-* Docker ;
-* Docker Compose (`docker compose`) ;
-* `make` ;
-* connexion Internet pour construire les images et télécharger WordPress.
-
-## Cloner le projet
+## Clone the repository
 
 ```bash
 git clone git@github.com:SaifMgaidi/inception.git
 cd inception
 ```
 
-## Configurer le domaine
+## Configure the environment
 
-Le projet utilise :
-
-```text
-sm-gaidi.42.fr
-```
-
-Pour un environnement local, ajouter par exemple dans `/etc/hosts` :
-
-```text
-127.0.0.1 sm-gaidi.42.fr
-```
-
-## Configurer les variables d'environnement
-
-Configurer :
+Create the local environment file:
 
 ```text
 srcs/.env
 ```
 
-avec les variables nécessaires au projet.
+and configure the variables required by the project.
 
-## Lancer l'infrastructure
+Do not commit this file.
 
-Depuis la racine du dépôt :
+## Configure the domain
+
+The project uses:
+
+```text
+sm-gaidi.42.fr
+```
+
+For a local environment, the domain can be mapped to the local machine in `/etc/hosts`:
+
+```text
+127.0.0.1 sm-gaidi.42.fr
+```
+
+## Start the infrastructure
+
+From the project root:
 
 ```bash
 make
 ```
 
-Le `Makefile` :
+The Makefile creates the required data directories, builds the Docker images and starts the containers.
 
-1. crée les dossiers nécessaires aux volumes ;
-2. construit les images ;
-3. démarre les conteneurs en arrière-plan.
+# Instructions
 
----
+## Stop the project
 
-# 🔍 Vérification
+```bash
+make down
+```
 
-## État des conteneurs
+This stops the project containers.
+
+## Check the containers
 
 ```bash
 docker compose -f srcs/docker-compose.yml ps
 ```
 
-## Logs
+The expected services are:
+
+- `mariadb`
+- `wordpress`
+- `nginx`
+
+## Check the logs
 
 ```bash
 docker compose -f srcs/docker-compose.yml logs
 ```
 
-Pour un service particulier :
+For a specific service:
 
 ```bash
 docker compose -f srcs/docker-compose.yml logs nginx
@@ -359,217 +317,144 @@ docker compose -f srcs/docker-compose.yml logs wordpress
 docker compose -f srcs/docker-compose.yml logs mariadb
 ```
 
-## Accéder au site
+## Access WordPress
 
-Une fois l'infrastructure démarrée :
+Once the infrastructure is running:
 
 ```text
 https://sm-gaidi.42.fr
 ```
 
-Comme le certificat est auto-signé, le navigateur peut afficher un avertissement de sécurité.
+The administration panel is available at:
 
----
-
-# 🛑 Arrêter le projet
-
-```bash
-make down
+```text
+https://sm-gaidi.42.fr/wp-admin
 ```
 
-Cette commande arrête les conteneurs et supprime les ressources gérées par Docker Compose tout en conservant les données présentes dans les dossiers de volumes.
+The browser may display a warning because the project uses a self-signed certificate.
 
----
-
-# 🧹 Nettoyage
-
-## `make clean`
+## Clean the project
 
 ```bash
 make clean
 ```
 
-Cette commande commence par arrêter l'infrastructure puis exécute :
-
-```bash
-docker system prune -a --force
-```
-
-Elle permet de supprimer les ressources Docker inutilisées.
-
-## `make fclean`
-
 ```bash
 make fclean
 ```
 
-Cette commande effectue un nettoyage plus important et supprime également les données présentes dans :
+> `make fclean` also removes the persistent project data stored in `/home/sm-gaidi/data/`.
 
-```text
-/home/sm-gaidi/data/mariadb
-/home/sm-gaidi/data/wordpress
-```
-
-⚠️ **Cette opération entraîne la suppression des données persistantes du projet.**
-
-## `make re`
+To rebuild the project from scratch:
 
 ```bash
 make re
 ```
 
-Permet de repartir de zéro :
+# Required comparisons
 
-```text
-fclean
-  ↓
-all
-  ↓
-reconstruction complète
-```
+## Virtual Machines vs Docker
 
----
+A virtual machine emulates or virtualizes an entire operating system. Each VM has its own operating system, kernel and allocated resources.
 
-# 🧰 Commandes Docker utiles
+Docker containers share the host kernel and isolate applications and their dependencies. They are generally lighter and faster to start than virtual machines.
 
-### Conteneurs actifs
+For this project, Docker is appropriate because each service can be isolated in its own container while communicating through a dedicated Docker network.
 
-```bash
-docker ps
-```
+## Secrets vs Environment Variables
 
-### Tous les conteneurs
+Environment variables are convenient for passing configuration values to containers, but sensitive values stored directly in environment variables can be exposed through configuration or process inspection.
 
-```bash
-docker ps -a
-```
+Docker secrets provide a mechanism designed to handle sensitive values more securely by making secret data available to a container as files.
 
-### Images
+For a production infrastructure, secrets are preferable for sensitive credentials. In this project, environment variables are used because they are part of the project configuration and are stored locally in `.env`.
 
-```bash
-docker images
-```
+## Docker Network vs Host Network
 
-### Volumes
+A Docker bridge network provides an isolated virtual network between containers. Containers can communicate using Docker service names without exposing every service to the host.
 
-```bash
-docker volume ls
-```
+Host networking removes most of this network isolation and makes the container use the host network namespace directly.
 
-### Réseaux
+The project uses a dedicated bridge network so that NGINX, WordPress and MariaDB can communicate internally while only HTTPS port `443` is exposed to the host.
 
-```bash
-docker network ls
-```
+## Docker Volumes vs Bind Mounts
 
-### Inspecter le réseau
+Docker volumes are managed by Docker and are commonly used to persist container data.
 
-```bash
-docker network inspect inception_inception_network
-```
+Bind mounts directly map a specific host path into a container.
 
-### Entrer dans un conteneur
+This project uses the host paths required by the Inception subject for persistent data and configures them through Docker's volume mechanism.
 
-```bash
-docker exec -it mariadb bash
-docker exec -it wordpress bash
-docker exec -it nginx bash
-```
+# HTTPS
 
----
+NGINX uses a self-signed certificate generated with OpenSSL.
 
-# 🔐 HTTPS
-
-NGINX utilise un certificat auto-signé généré avec OpenSSL :
+The certificate and private key are stored inside the NGINX image at:
 
 ```text
 /etc/nginx/ssl/inception.crt
 /etc/nginx/ssl/inception.key
 ```
 
-Le certificat est généré lors de la construction de l'image NGINX.
-
-La configuration NGINX limite les protocoles à :
+TLS is restricted to:
 
 ```text
 TLSv1.2
 TLSv1.3
 ```
 
----
+# Persistence and initialization
 
-# 🔄 Initialisation et redémarrage
+On the first initialization:
 
-Le projet distingue une première initialisation d'un environnement déjà configuré.
+- MariaDB creates the required database and user.
+- WordPress downloads and installs WordPress.
+- WordPress creates the configured users.
 
-## Première exécution
+On subsequent container starts, the existing persistent data is reused.
 
-MariaDB :
+The WordPress initialization script checks for `wp-config.php` before installing WordPress again.
 
-* initialise la base ;
-* crée l'utilisateur ;
-* configure les privilèges.
+# Resources
 
-WordPress :
+## Docker
 
-* télécharge les fichiers ;
-* crée `wp-config.php` ;
-* installe WordPress ;
-* crée les utilisateurs.
+- Docker documentation
+- Docker Compose documentation
+- Dockerfile reference
 
-## Exécutions suivantes
+## WordPress
 
-Les données étant conservées dans les volumes, les conteneurs peuvent être recréés sans perdre automatiquement les données.
+- WordPress documentation
+- WP-CLI documentation
 
-Le script WordPress vérifie notamment l'existence de :
+## NGINX
 
-```text
-wp-config.php
-```
+- NGINX documentation
+- OpenSSL documentation
 
-avant de procéder à une nouvelle installation.
+## MariaDB
 
-MariaDB effectue de son côté une vérification du dossier de base de données avant son initialisation.
+- MariaDB documentation
 
----
+## 42
 
-# 📚 Concepts étudiés
+- 42 Inception subject
 
-Ce projet permet de travailler concrètement sur :
+## AI usage
 
-* Docker ;
-* Dockerfiles ;
-* Docker Compose ;
-* images Docker ;
-* conteneurs ;
-* isolation des services ;
-* réseaux Docker ;
-* volumes ;
-* persistance des données ;
-* variables d'environnement ;
-* NGINX ;
-* HTTPS ;
-* SSL/TLS ;
-* certificats auto-signés ;
-* PHP-FPM ;
-* FastCGI ;
-* WordPress ;
-* WP-CLI ;
-* MariaDB ;
-* SQL ;
-* scripts Bash ;
-* processus PID 1 ;
-* initialisation de services ;
-* communication inter-conteneurs.
+AI tools were used as learning and assistance tools during the development of this project.
 
----
+AI-generated suggestions were reviewed, understood and adapted before being used. Commands and configuration changes were tested in the project environment.
 
-# 👤 Auteur
+The final implementation remains the responsibility of the author, who must be able to explain and justify the code and configuration used in this project.
+
+# Author
 
 **Saif Mgaidi**
 
-Étudiant à **42 Paris**
+42 Paris
 
-GitHub : `SaifMgaidi`
+GitHub: `SaifMgaidi`
 
-Repository : `SaifMgaidi/inception`
+Repository: `SaifMgaidi/inception`
