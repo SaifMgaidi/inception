@@ -1,6 +1,4 @@
 
-version: '3.8'
-
 services:
   # Le service de base de données
   mariadb:
