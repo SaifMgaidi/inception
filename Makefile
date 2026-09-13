@@ -15,17 +15,18 @@ down:
 	@echo "Arrêt de l'infrastructure..."
 	@docker compose -f $(COMPOSE_FILE) down
 
-# Nettoie le système Docker en supprimant les images et conteneurs non utilisés
-clean: down
-	@echo "Nettoyage des images Docker..."
-	@docker system prune -a --force
+# Nettoie les ressources Docker de ce projet
+clean:
+	@echo "Nettoyage des ressources Docker du projet..."
+	@docker compose -f $(COMPOSE_FILE) down --rmi local --remove-orphans
 
-# Nettoyage total : supprime tout, y compris les volumes de données physiques
-fclean: clean
-	@echo "Suppression totale des données et des volumes..."
+
+# Nettoyage total : supprime les ressources Docker et les données du projet
+fclean:
+	@echo "Suppression des ressources et des données du projet..."
+	@docker compose -f $(COMPOSE_FILE) down -v --rmi local --remove-orphans
 	@sudo rm -rf /home/sm-gaidi/data/mariadb/*
 	@sudo rm -rf /home/sm-gaidi/data/wordpress/*
-	@docker volume rm $$(docker volume ls -q) 2>/dev/null || true
 
 # Reconstruit tout de zéro
 re: fclean all
