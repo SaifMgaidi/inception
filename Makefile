@@ -25,8 +25,8 @@ clean:
 fclean:
 	@echo "Suppression des ressources et des données du projet..."
 	@docker compose -f $(COMPOSE_FILE) down -v --rmi local --remove-orphans
-	@sudo rm -rf /home/sm-gaidi/data/mariadb/*
-	@sudo rm -rf /home/sm-gaidi/data/wordpress/*
+	@sudo rm -rf /home/sm-gaidi/data/mariadb
+	@sudo rm -rf /home/sm-gaidi/data/wordpress
 
 # Reconstruit tout de zéro
 re: fclean all
