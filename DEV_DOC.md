@@ -715,26 +715,6 @@ The subject requires the two persistent storages to be Docker named volumes and 
 
 on the host. It explicitly states that bind mounts are not allowed for these volumes.
 
-### Important implementation note
-
-The current Compose configuration uses:
-
-```yaml
-driver: local
-driver_opts:
-  type: none
-  o: bind
-  device: /home/sm-gaidi/data/...
-```
-
-This is technically a named Docker volume configured to use a host bind underneath, but it is still a **bind-based volume implementation**.
-
-Therefore, this part should be reviewed before final evaluation because the subject explicitly says:
-
-```text
-Bind mounts are not allowed for these volumes.
-```
-
 ---
 
 # 17. Makefile
@@ -1416,25 +1396,12 @@ The requirements concerning containers, TLS, users, networking, credentials, env
 
 The current implementation should be reviewed against the subject in particular on the following points:
 
-### 1. Persistent volumes
 
-The current Compose configuration uses Docker volumes configured with:
+### 1. Credentials
 
-```yaml
-driver_opts:
-  type: none
-  o: bind
-```
+The .env file contains passwords and credentials. To comply with the subject's strict security rules, this file is added to .gitignore and is never committed to the public Git repository.
 
-The subject explicitly prohibits bind mounts for the two persistent volumes.
-
-### 2. Credentials
-
-The `.env` file currently contains passwords and credentials.
-
-The subject states that credentials stored in the Git repository can result in failure.
-
-### 3. Documentation
+### 2. Documentation
 
 The required documentation files must exist at the root:
 
